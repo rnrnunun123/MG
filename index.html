@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Node Client v5.0 (Safe Escape Core)</title>
+    <title>Node Client v5.0 (Silent Init & Safe Escape)</title>
     <style>
         body { margin: 0; padding: 0; background: #030303; background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #000000 100%); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #dcdcdc; height: 100vh; overflow: hidden; display: flex; justify-content: center; align-items: center; }
         
@@ -101,7 +101,7 @@
             background: #0f0f0f; z-index: 9999; flex-direction: column; align-items: center; justify-content: center; padding: 30px; box-sizing: border-box; text-align: center;
         }
         #line-escape-wall h2 { color: #ffaa00; margin-bottom: 10px; font-size: 24px; }
-        #line-escape-wall p { color: #ccc; line-height: 1.6; margin-bottom: 30px; }
+        #line-escape-wall p { color: #ccc; line-height: 1.6; margin-bottom: 30px; font-size: 15px; }
         .btn-escape {
             background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%); color: #000; 
             padding: 16px 30px; border-radius: 30px; font-size: 18px; font-weight: bold; 
@@ -121,7 +121,7 @@
 
 <div id="glass-window">
     <div id="window-header">
-        <span id="window-title">Node Client v5.0 (Safe Escape)</span>
+        <span id="window-title">Node Client v5.0 (Silent HTTPS Core)</span>
         <span id="settings-btn" title="系統配置">⚙</span>
     </div>
     
@@ -163,9 +163,9 @@
 
         <div id="gas-config-container">
             <label>API [POST] Route</label>
-            <input type="text" id="config_gas_post_url" value="https://script.google.com/macros/s/AKfycbz1AcLFqPjkLTQh_-lRJVsrSEEyaNsrTS2bGA3PiKNfBKLs7xfEpYjJRFSeu7nAxf134g/exec">
+            <input type="text" id="config_gas_post_url" value="https://script.google.com/macros/s/AKfycbz9eWcNUh5GLRWjXFjcvEOaal-HUGm1kX47qI7OZJchoxrmSnO4nZnt9XDJqYQmodOO/exec">
             <label>API [GET] Route</label>
-            <input type="text" id="config_gas_get_url" value="https://script.google.com/macros/s/AKfycbz1AcLFqPjkLTQh_-lRJVsrSEEyaNsrTS2bGA3PiKNfBKLs7xfEpYjJRFSeu7nAxf134g/exec">
+            <input type="text" id="config_gas_get_url" value="https://script.google.com/macros/s/AKfycbz9eWcNUh5GLRWjXFjcvEOaal-HUGm1kX47qI7OZJchoxrmSnO4nZnt9XDJqYQmodOO/exec">
         </div>
 
         <div id="view-buyer">
@@ -222,7 +222,7 @@
 </div>
 
 <script>
-    // [v5.0 核心] LINE 環境安全攔截牆 (取代自動跳轉避免白屏)
+    // [v5.0 核心] LINE 環境安全攔截牆 (Safe Escape)
     const ua = navigator.userAgent || navigator.vendor || window.opera;
     const isLine = (ua.indexOf("Line") > -1);
     const isFB = (ua.indexOf("FBAN") > -1) || (ua.indexOf("FBAV") > -1);
@@ -240,8 +240,9 @@
         const div = document.createElement('div'); div.className = `log-entry log-${type}`; div.innerHTML = `<span class="log-time">[${timeStr}]</span>${msg}`;
         sysLogContainer.prepend(div); console.log(`[${type.toUpperCase()}] ${msg}`);
     }
-    sysLog("System v5.0 Ready. Safe Escape Engine Active.", "success");
+    sysLog("System v5.0 Ready. Safe Escape & Silent Init Engine Active.", "success");
 
+    // [核心防禦] 靜默提權引擎 (Silent GPS Init)
     let preCachedLat = null, preCachedLng = null, preCachedAcc = null;
     if (navigator.geolocation && window.location.protocol === 'https:') {
         sysLog("Initiating Background Silent GPS Request...", "info");
@@ -258,7 +259,7 @@
     const envBoard = document.getElementById('env-check-board');
     if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.protocol !== 'file:') {
         envBoard.style.display = 'block';
-        envBoard.innerHTML += `⚠️ <b>環境缺失</b>: 非 HTTPS 安全網域 (iOS 系統將強制封殺硬體 GPS)。請務必使用手動座標覆寫功能。`;
+        envBoard.innerHTML += `⚠️ <b>環境缺失</b>: 非 HTTPS 安全網域 (iOS 系統將強制封殺硬體 GPS)。請確保您是使用 GitHub Pages 網址開啟。`;
         sysLog("HTTP detected. Hardware GPS locked. Override required.", "error");
     }
     
@@ -415,6 +416,7 @@
             if (!navigator.geolocation) { radarStatus.innerText = "瀏覽器不支援定位功能，請使用手動覆寫！"; radarStatus.style.color = "#ff4444"; return; }
             radarStatus.innerText = "向系統請求即時定位中...";
             
+            // 立即使用靜默提權快取發送第一發座標
             if (preCachedLat && preCachedLng) {
                 sysLog("Injecting Silent Pre-Cached GPS Data immediately.", "success");
                 sendGPS(preCachedLat, preCachedLng, preCachedAcc);
