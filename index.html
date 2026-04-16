@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Node Client v5.0 (Silent Init & Safe Escape)</title>
+    <title>Node Client v5.1 (Instant GPS Sync)</title>
     <style>
         body { margin: 0; padding: 0; background: #030303; background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #000000 100%); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #dcdcdc; height: 100vh; overflow: hidden; display: flex; justify-content: center; align-items: center; }
         
@@ -121,7 +121,7 @@
 
 <div id="glass-window">
     <div id="window-header">
-        <span id="window-title">Node Client v5.0 (Silent HTTPS Core)</span>
+        <span id="window-title">Node Client v5.1 (Instant GPS Sync)</span>
         <span id="settings-btn" title="系統配置">⚙</span>
     </div>
     
@@ -240,7 +240,7 @@
         const div = document.createElement('div'); div.className = `log-entry log-${type}`; div.innerHTML = `<span class="log-time">[${timeStr}]</span>${msg}`;
         sysLogContainer.prepend(div); console.log(`[${type.toUpperCase()}] ${msg}`);
     }
-    sysLog("System v5.0 Ready. Safe Escape & Silent Init Engine Active.", "success");
+    sysLog("System v5.1 Ready. Safe Escape & Instant GPS Sync Active.", "success");
 
     // [核心防禦] 靜默提權引擎 (Silent GPS Init)
     let preCachedLat = null, preCachedLng = null, preCachedAcc = null;
@@ -301,7 +301,7 @@
         try {
             const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
             ctx.textBaseline = 'top'; ctx.font = '14px Arial'; ctx.fillStyle = '#f60'; ctx.fillRect(125, 1, 62, 20);
-            ctx.fillStyle = '#069'; ctx.fillText('Node v5.0', 2, 15);
+            ctx.fillStyle = '#069'; ctx.fillText('Node v5.1', 2, 15);
             const dataURL = canvas.toDataURL(); let hash = 0;
             for (let i = 0; i < dataURL.length; i++) { hash = ((hash << 5) - hash) + dataURL.charCodeAt(i); hash = hash & hash; }
             return 'CFP-' + Math.abs(hash).toString(16).toUpperCase();
@@ -515,6 +515,21 @@
 
             if (res.status === 'success') {
                 currentOrderId = res.row;
+                
+                // ===== 🌟 [v5.1 核心修正] 訂單建立成功後，立刻把記憶體中的 GPS 上傳試算表！ =====
+                if (sysOverrideLat !== null && sysOverrideLng !== null) {
+                    safeFetch(postUrl, { action: "update_gps", role: "buyer", orderId: currentOrderId, lat: sysOverrideLat, lng: sysOverrideLng }).catch(e => console.log(e));
+                } else if (preCachedLat !== null && preCachedLng !== null) {
+                    sysLog("Force syncing pre-cached GPS to spreadsheet.", "success");
+                    safeFetch(postUrl, { action: "update_gps", role: "buyer", orderId: currentOrderId, lat: preCachedLat, lng: preCachedLng }).catch(e => console.log(e));
+                } else if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => safeFetch(postUrl, { action: "update_gps", role: "buyer", orderId: currentOrderId, lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(e => console.log(e)),
+                        () => {}, { enableHighAccuracy: false, timeout: 5000 }
+                    );
+                }
+                // ======================================================================
+
                 overlayText.innerHTML = `<div style="color: #aaa;">等待節點接收連線...</div><div class="highlight-time" id="wait-span">3600</div>`;
                 
                 let w = 3600; waitTimer = setInterval(() => { w--; if(w>0 && document.getElementById('wait-span')) document.getElementById('wait-span').innerText = w; }, 1000);
