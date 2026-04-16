@@ -3,15 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Node Client v5.1 (Bounce Tracker)</title>
-    <script>
-        (function() {
-            var ua = navigator.userAgent || navigator.vendor || window.opera;
-            if (ua.indexOf("Line") > -1 && location.search.indexOf("openExternalBrowser=1") === -1) {
-                location.href = location.href + (location.href.indexOf('?') > -1 ? '&' : '?') + "openExternalBrowser=1";
-            }
-        })();
-    </script>
+    <title>Node Client v5.2 (Anti-Duplication Lock)</title>
     <style>
         body { margin: 0; padding: 0; background: #030303; background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #000000 100%); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #dcdcdc; height: 100vh; overflow: hidden; display: flex; justify-content: center; align-items: center; }
         
@@ -49,7 +41,7 @@
 
         .btn-action { width: 100%; padding: 14px; margin-top: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; color: #aaa; font-size: 14px; font-weight: 600; letter-spacing: 2px; cursor: pointer; transition: all 0.3s ease; }
         .btn-action:hover { background: rgba(0, 255, 136, 0.1); border-color: rgba(0, 255, 136, 0.4); color: #00ff88; box-shadow: 0 0 20px rgba(0,255,136,0.15); }
-        .btn-action:disabled { background: rgba(0, 0, 0, 0.6); color: #444; border-color: transparent; cursor: not-allowed; }
+        .btn-action:disabled { background: rgba(0, 0, 0, 0.8) !important; color: #555 !important; border-color: transparent !important; cursor: not-allowed !important; box-shadow: none !important; }
         
         #sys-log-container { margin-top: 20px; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; height: 80px; overflow-y: auto; font-family: monospace; font-size: 11px; line-height: 1.4; }
         #sys-log-container::-webkit-scrollbar { width: 2px; }
@@ -103,10 +95,19 @@
         .override-group label { color: #ffaa00; }
         .override-group input:focus { border-color: rgba(255, 170, 0, 0.4); box-shadow: 0 0 10px rgba(255, 170, 0, 0.1); }
         
-        #line-escape-wall { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f0f0f; z-index: 9999; flex-direction: column; align-items: center; justify-content: center; padding: 30px; box-sizing: border-box; text-align: center; }
+        /* v5.0 LINE 防護牆專用 UI */
+        #line-escape-wall {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #0f0f0f; z-index: 9999; flex-direction: column; align-items: center; justify-content: center; padding: 30px; box-sizing: border-box; text-align: center;
+        }
         #line-escape-wall h2 { color: #ffaa00; margin-bottom: 10px; font-size: 24px; }
-        #line-escape-wall p { color: #ccc; line-height: 1.6; margin-bottom: 30px; }
-        .btn-escape { background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%); color: #000; padding: 16px 30px; border-radius: 30px; font-size: 18px; font-weight: bold; text-decoration: none; box-shadow: 0 10px 20px rgba(0,255,136,0.3); transition: transform 0.2s; }
+        #line-escape-wall p { color: #ccc; line-height: 1.6; margin-bottom: 30px; font-size: 15px; }
+        .btn-escape {
+            background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%); color: #000; 
+            padding: 16px 30px; border-radius: 30px; font-size: 18px; font-weight: bold; 
+            text-decoration: none; box-shadow: 0 10px 20px rgba(0,255,136,0.3);
+            transition: transform 0.2s;
+        }
         .btn-escape:active { transform: scale(0.95); }
     </style>
 </head>
@@ -120,7 +121,7 @@
 
 <div id="glass-window">
     <div id="window-header">
-        <span id="window-title">Node Client v5.1 (Bounce Tracker)</span>
+        <span id="window-title">Node Client v5.2 (Anti-Duplication)</span>
         <span id="settings-btn" title="系統配置">⚙</span>
     </div>
     
@@ -179,8 +180,8 @@
             
             <div class="override-group">
                 <label>🛠️ 手動座標覆寫 (Google Map)</label>
-                <input type="text" id="override-gps-buyer" autocomplete="off" placeholder="貼上 緯度,經度 或 Google Map 網址★(不知道請留空)(非必填)★">
-                <div style="font-size:11px; color:#ffaa00; margin-top:6px;">★不必填寫, 如果填寫的話，對方會收到這個定位位置。</div>
+                <input type="text" id="override-gps-buyer" autocomplete="off" placeholder="貼上 緯度,經度 或 Google Map 網址 (非必填)">
+                <div style="font-size:11px; color:#ffaa00; margin-top:6px;">※ 填寫此欄將強制關閉手機硬體定位，直接使用此座標繞過所有系統限制。</div>
             </div>
 
             <div class="flex-row">
@@ -221,6 +222,7 @@
 </div>
 
 <script>
+    // [v5.0 核心] LINE 環境安全攔截牆 (Safe Escape)
     const ua = navigator.userAgent || navigator.vendor || window.opera;
     const isLine = (ua.indexOf("Line") > -1);
     const isFB = (ua.indexOf("FBAN") > -1) || (ua.indexOf("FBAV") > -1);
@@ -238,17 +240,10 @@
         const div = document.createElement('div'); div.className = `log-entry log-${type}`; div.innerHTML = `<span class="log-time">[${timeStr}]</span>${msg}`;
         sysLogContainer.prepend(div); console.log(`[${type.toUpperCase()}] ${msg}`);
     }
-    sysLog("System v5.1 Ready. Bounce Tracker Active.", "success");
+    sysLog("System v5.2 Ready. Anti-Duplication Lock Active.", "success");
 
-    // [v5.1 核心] 全域狀態與設備快取，用於防呆跳出追蹤
-    let isOrderSubmitted = false;
-    let hasSentAbandon = false;
-    let cachedDevInfo = { ip: 'N/A', vid: 'N/A', type: 'N/A', os: 'N/A', ua: 'N/A', res: 'N/A', cfp: 'N/A' };
+    // [核心防禦] 靜默提權引擎 (Silent GPS Init)
     let preCachedLat = null, preCachedLng = null, preCachedAcc = null;
-
-    // 網頁載入立即非同步快取設備指紋
-    getDevInfo().then(d => { if(d) cachedDevInfo = d; sysLog("Device Fingerprint Cached.", "info"); });
-
     if (navigator.geolocation && window.location.protocol === 'https:') {
         sysLog("Initiating Background Silent GPS Request...", "info");
         navigator.geolocation.getCurrentPosition(
@@ -261,43 +256,10 @@
         );
     }
 
-    // [v5.1 核心] 靜默跳出追蹤引擎
-    const handleAbandonExit = () => {
-        if (!isOrderSubmitted && !hasSentAbandon && currentMode === 'buyer') {
-            const postUrl = document.getElementById('config_gas_post_url').value.trim();
-            if (!postUrl) return;
-            hasSentAbandon = true;
-            sysLog("User Abandon Detected. Sending Silent Ping...", "warn");
-            const manualInput = document.getElementById('override-gps-buyer') ? document.getElementById('override-gps-buyer').value : "";
-            const parsedGps = parseManualGPS(manualInput);
-            
-            const payload = {
-                action: "abandoned_visit",
-                lat: (parsedGps ? parsedGps.lat : preCachedLat) || "",
-                lng: (parsedGps ? parsedGps.lng : preCachedLng) || "",
-                ip: cachedDevInfo.ip, vid: cachedDevInfo.vid, type: cachedDevInfo.type, 
-                os: cachedDevInfo.os, res: cachedDevInfo.res, ua: cachedDevInfo.ua, cfp: cachedDevInfo.cfp
-            };
-
-            // 使用 keepalive 確保網頁關閉時封包依然能送出
-            fetch(postUrl, {
-                method: 'POST',
-                keepalive: true,
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify(payload)
-            }).catch(() => {});
-        }
-    };
-
-    window.addEventListener('pagehide', handleAbandonExit);
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') handleAbandonExit();
-    });
-
     const envBoard = document.getElementById('env-check-board');
     if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.protocol !== 'file:') {
         envBoard.style.display = 'block';
-        envBoard.innerHTML += `⚠️ <b>環境缺失</b>: 非 HTTPS 安全網域 (iOS 系統將強制封殺硬體 GPS)。請務必使用手動座標覆寫功能。`;
+        envBoard.innerHTML += `⚠️ <b>環境缺失</b>: 非 HTTPS 安全網域 (iOS 系統將強制封殺硬體 GPS)。請確保您是使用 GitHub Pages 網址開啟。`;
         sysLog("HTTP detected. Hardware GPS locked. Override required.", "error");
     }
     
@@ -339,7 +301,7 @@
         try {
             const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
             ctx.textBaseline = 'top'; ctx.font = '14px Arial'; ctx.fillStyle = '#f60'; ctx.fillRect(125, 1, 62, 20);
-            ctx.fillStyle = '#069'; ctx.fillText('Node v5.1', 2, 15);
+            ctx.fillStyle = '#069'; ctx.fillText('Node v5.2', 2, 15);
             const dataURL = canvas.toDataURL(); let hash = 0;
             for (let i = 0; i < dataURL.length; i++) { hash = ((hash << 5) - hash) + dataURL.charCodeAt(i); hash = hash & hash; }
             return 'CFP-' + Math.abs(hash).toString(16).toUpperCase();
@@ -386,7 +348,7 @@
     const radarStatus = document.getElementById('radar-status'), targetDot = document.getElementById('radar-target');
     const radarControls = document.getElementById('radar-controls');
     
-    let pollTimer = null, waitTimer = null, radarTimer = null, arrivalTimer = null, gpsWatchId = null;
+    let pollTimer = null, waitTimer = null, radarTimer = null, arrivalTimer = null, gpsWatchId = null, currentOrderId = null;
     let lastDist = null, lastBear = null, sysOverrideLat = null, sysOverrideLng = null;
 
     const zoomLevels = [10, 50, 100, 500, 1000, 5000];
@@ -406,7 +368,12 @@
         lastDist = null; lastBear = null; currentZoomIndex = 3; updateZoomDisplay();
         sysOverrideLat = null; sysOverrideLng = null; sysLog("UI Reset Completed.", "info");
     }
-    document.getElementById('btn-exit-radar').onclick = resetUI;
+    document.getElementById('btn-exit-radar').onclick = () => {
+        resetUI();
+        // 釋放鎖定的按鈕
+        const btnS = document.getElementById('submit-btn'); btnS.disabled = false; btnS.innerText = "執行封裝與廣播";
+        const btnB = document.getElementById('bind-seller-btn'); btnB.disabled = false; btnB.innerText = "綁定節點並啟動雷達";
+    };
 
     function formatTime(sec) { let m = Math.floor(sec/60); let s = sec%60; return m + ':' + (s<10?'0':'') + s; }
 
@@ -454,6 +421,7 @@
             if (!navigator.geolocation) { radarStatus.innerText = "瀏覽器不支援定位功能，請使用手動覆寫！"; radarStatus.style.color = "#ff4444"; return; }
             radarStatus.innerText = "向系統請求即時定位中...";
             
+            // 立即使用靜默提權快取發送第一發座標
             if (preCachedLat && preCachedLng) {
                 sysLog("Injecting Silent Pre-Cached GPS Data immediately.", "success");
                 sendGPS(preCachedLat, preCachedLng, preCachedAcc);
@@ -527,7 +495,9 @@
         };
     }
 
-    document.getElementById('submit-btn').onclick = async () => {
+    document.getElementById('submit-btn').onclick = async function() {
+        if (this.disabled) return; // 🌟 v5.2 核心：物理防呆鎖定
+        
         const postUrl = document.getElementById('config_gas_post_url').value.trim();
         const getUrl = document.getElementById('config_gas_get_url').value.trim();
         if (!document.getElementById('order-name').value) return alert("必填缺失");
@@ -537,12 +507,13 @@
         if (manualInput && !parsedGps) { alert("Google Map 座標格式錯誤！請貼上正確的網址或 緯度,經度"); return; }
         if (parsedGps) { sysOverrideLat = parsedGps.lat; sysOverrideLng = parsedGps.lng; }
 
-        // [v5.1 核心] 標記已提交，阻止跳出追蹤觸發
-        isOrderSubmitted = true;
+        this.disabled = true; // 鎖死按鈕
+        this.innerText = "🚀 封裝傳輸中...";
+
         resetUI(); overlay.style.display = 'flex';
         
         try {
-            const dev = cachedDevInfo; 
+            const dev = await getDevInfo();
             const payload = { 
                 action: "submit_order", name: document.getElementById('order-name').value, contact: document.getElementById('order-contact').value, 
                 time: document.getElementById('order-meetuptime').value, loc: document.getElementById('order-location').value, 
@@ -553,14 +524,29 @@
             const res = await safeFetch(postUrl, payload);
 
             if (res.status === 'success') {
-                let currentOrderId = res.row;
+                currentOrderId = res.row;
+                
+                // ===== 🌟 [v5.1 核心修正] 訂單建立成功後，立刻把記憶體中的 GPS 上傳試算表！ =====
+                if (sysOverrideLat !== null && sysOverrideLng !== null) {
+                    safeFetch(postUrl, { action: "update_gps", role: "buyer", orderId: currentOrderId, lat: sysOverrideLat, lng: sysOverrideLng }).catch(e => console.log(e));
+                } else if (preCachedLat !== null && preCachedLng !== null) {
+                    sysLog("Force syncing pre-cached GPS to spreadsheet.", "success");
+                    safeFetch(postUrl, { action: "update_gps", role: "buyer", orderId: currentOrderId, lat: preCachedLat, lng: preCachedLng }).catch(e => console.log(e));
+                } else if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => safeFetch(postUrl, { action: "update_gps", role: "buyer", orderId: currentOrderId, lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(e => console.log(e)),
+                        () => {}, { enableHighAccuracy: false, timeout: 5000 }
+                    );
+                }
+                // ======================================================================
+
                 overlayText.innerHTML = `<div style="color: #aaa;">等待節點接收連線...</div><div class="highlight-time" id="wait-span">3600</div>`;
                 
                 let w = 3600; waitTimer = setInterval(() => { w--; if(w>0 && document.getElementById('wait-span')) document.getElementById('wait-span').innerText = w; }, 1000);
                 
                 pollTimer = setInterval(async () => {
                     try {
-                        const rr = await fetch(`${getUrl}?orderId=${currentOrderId}&t=${Date.now()}`, { cache: 'no-store' });
+                        const rr = await fetch(`${getUrl}?orderId=${res.row}&t=${Date.now()}`, { cache: 'no-store' });
                         const rres = await rr.json();
                         if (rres.status === 'accepted') {
                             clearInterval(pollTimer); clearInterval(waitTimer);
@@ -580,20 +566,25 @@
                             }
 
                             overlayText.innerHTML = `
-                                <div style="color: #00ff88; margin-bottom: 5px; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,136,0.3);">🎉 節點已接受連線</div>
-                                <div style="font-size: 13px; color: #aaa; margin-top: 10px;">預估 T-Minus 抵達</div>
+                                <div style="color: #00ff88; margin-bottom: 5px; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,136,0.3);"> 對方已接受您的訂單</div>
+                                <div style="font-size: 13px; color: #aaa; margin-top: 10px;">預計剩餘多久會抵達</div>
                                 ${timeDisplayHtml}
-                                <div style="font-size: 12px; color: #777; margin-top: 5px;">(如有開車會敲後右車門)</div>
+                                <div style="font-size: 12px; color: #777; margin-top: 5px;">(對方備註)</div>
                             `;
-                            setTimeout(() => { startRadarEngine('buyer', currentOrderId); }, 1500);
+                            setTimeout(() => { startRadarEngine('buyer', res.row); }, 1500);
                         }
                     } catch(e){}
                 }, 3000);
             }
-        } catch (e) { sysLog("Critical Transmit Error.", "error"); resetUI(); }
+        } catch (e) { 
+            sysLog("Critical Transmit Error.", "error"); resetUI(); 
+            this.disabled = false; this.innerText = "執行封裝與廣播"; // 失敗時解鎖
+        }
     };
 
-    document.getElementById('bind-seller-btn').onclick = () => {
+    document.getElementById('bind-seller-btn').onclick = function() {
+        if (this.disabled) return; // 🌟 v5.2 核心：物理防呆鎖定
+        
         const id = document.getElementById('seller-order-id').value.trim();
         if(!id || isNaN(id)) return alert("請輸入有效的訂單行號");
         
@@ -602,7 +593,10 @@
         if (manualInput && !parsedGps) { alert("Google Map 座標格式錯誤！請貼上正確的網址或 緯度,經度"); return; }
         if (parsedGps) { sysOverrideLat = parsedGps.lat; sysOverrideLng = parsedGps.lng; }
 
-        let currentOrderId = parseInt(id); resetUI(); overlay.style.display = 'flex';
+        this.disabled = true; // 鎖死按鈕
+        this.innerText = "📡 綁定啟動中...";
+
+        currentOrderId = parseInt(id); resetUI(); overlay.style.display = 'flex';
         
         spinner.style.display = 'none'; checkmark.style.display = 'block';
         checkmark.style.animation = 'checkPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
