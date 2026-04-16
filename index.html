@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Node Client v5.0 (Safe Escape Core)</title>
+    <style>
+        body { margin: 0; padding: 0; background: #030303; background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #000000 100%); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #dcdcdc; height: 100vh; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        
+        #glass-window { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 460px; max-height: 95vh; background: rgba(15, 15, 15, 0.75); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), inset 0 1px 1px rgba(255, 255, 255, 0.1); display: flex; flex-direction: column; z-index: 1000; overflow: hidden; }
+        #window-header { padding: 12px 20px; background: rgba(5, 5, 5, 0.6); cursor: grab; font-weight: 600; font-size: 14px; letter-spacing: 1px; user-select: none; border-bottom: 1px solid rgba(255, 255, 255, 0.04); display: flex; align-items: center; z-index: 10; }
+        #window-header:active { cursor: grabbing; }
+        #window-header::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #444; margin-right: 10px; box-shadow: 16px 0 0 #444, 32px 0 0 #444; }
+        #window-title { margin-left: 45px; color: #888; }
+        #settings-btn { margin-left: auto; cursor: pointer; font-size: 16px; opacity: 0.6; }
+        #settings-btn:hover { opacity: 1; transform: rotate(90deg); transition: transform 0.3s; }
+
+        .mode-switch { display: flex; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .mode-btn { flex: 1; padding: 15px 0; background: transparent; border: none; color: #666; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.3s; letter-spacing: 1px; }
+        .mode-btn.active { color: #00ff88; background: rgba(0,255,136,0.05); box-shadow: inset 0 -2px 0 #00ff88; }
+        .mode-btn:hover:not(.active) { color: #aaa; background: rgba(255,255,255,0.02); }
+
+        .content { padding: 25px; overflow-y: auto; position: relative; display: flex; flex-direction: column; }
+        .content::-webkit-scrollbar { width: 4px; }
+        .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+        #env-check-board { display: none; background: rgba(255, 0, 0, 0.1); border: 1px dashed #ff4444; padding: 15px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; color: #ff6666; line-height: 1.5; }
+        
+        #gas-config-container { display: none; background: rgba(0, 255, 136, 0.05); border: 1px dashed rgba(0, 255, 136, 0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        #gas-config-container label { color: #00ff88; font-size: 11px; margin-bottom: 8px; display: block; }
+        #gas-config-container input { background: rgba(0,0,0,0.6); border: 1px solid rgba(0, 255, 136, 0.2); color: #aaa; font-size: 11px; font-family: monospace; width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; }
+
+        .form-group { margin-bottom: 18px; }
+        label { display: block; margin-bottom: 8px; font-size: 13px; color: #777; letter-spacing: 0.5px; }
+        .required::after { content: " *"; color: #00ff88; }
+        input, select, textarea { width: 100%; padding: 12px; box-sizing: border-box; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px; color: #e0e0e0; font-size: 14px; outline: none; transition: all 0.3s ease; box-shadow: inset 0 2px 6px rgba(0,0,0,0.6); }
+        input:focus, select:focus, textarea:focus { border-color: rgba(0, 255, 136, 0.4); background: rgba(0, 0, 0, 0.7); box-shadow: 0 0 10px rgba(0,255,136,0.1), inset 0 2px 6px rgba(0,0,0,0.6); }
+        textarea { resize: vertical; min-height: 70px; }
+        .flex-row { display: flex; gap: 15px; }
+        .flex-row .form-group { flex: 1; }
+
+        .btn-action { width: 100%; padding: 14px; margin-top: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; color: #aaa; font-size: 14px; font-weight: 600; letter-spacing: 2px; cursor: pointer; transition: all 0.3s ease; }
+        .btn-action:hover { background: rgba(0, 255, 136, 0.1); border-color: rgba(0, 255, 136, 0.4); color: #00ff88; box-shadow: 0 0 20px rgba(0,255,136,0.15); }
+        .btn-action:disabled { background: rgba(0, 0, 0, 0.6); color: #444; border-color: transparent; cursor: not-allowed; }
+        
+        #sys-log-container { margin-top: 20px; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; height: 80px; overflow-y: auto; font-family: monospace; font-size: 11px; line-height: 1.4; }
+        #sys-log-container::-webkit-scrollbar { width: 2px; }
+        #sys-log-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }
+        .log-entry { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px dashed rgba(255,255,255,0.05); }
+        .log-time { color: #666; margin-right: 5px; }
+        .log-info { color: #aaa; }
+        .log-success { color: #00ff88; }
+        .log-error { color: #ff4444; }
+        .log-warn { color: #ffaa00; }
+
+        #loading-overlay { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(5, 5, 5, 0.95); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); z-index: 2000; flex-direction: column; align-items: center; padding: 25px 20px; box-sizing: border-box; overflow-y: auto; }
+        
+        #status-board { width: 100%; background: rgba(25, 25, 25, 0.6); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 20px; text-align: center; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5); margin-bottom: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        
+        .spinner { width: 45px; height: 45px; border: 3px solid rgba(255,255,255,0.05); border-left-color: #00ff88; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; flex-shrink: 0; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        .success-checkmark { display: none; width: 60px; height: 60px; background: #00ff88; border-radius: 50%; position: relative; box-shadow: 0 0 30px rgba(0, 255, 136, 0.5), inset 0 0 10px rgba(255,255,255,0.5); transform: scale(0); margin-bottom: 15px; flex-shrink: 0; }
+        .success-checkmark::after { content: ''; position: absolute; left: 20px; top: 12px; width: 14px; height: 28px; border: solid #000; border-width: 0 5px 5px 0; transform: rotate(45deg); }
+        @keyframes checkPop { 0% { transform: scale(0); opacity: 0; } 70% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+
+        #overlay-text { font-size: 16px; color: #ccc; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+        .highlight-time { color: #00ff88; font-size: 38px; font-weight: 900; margin: 5px 0; text-shadow: 0 0 15px rgba(0,255,136,0.4); font-variant-numeric: tabular-nums; letter-spacing: 2px; }
+
+        .radar-box { display: none; flex-direction: column; align-items: center; width: 100%; padding-top: 10px; }
+        .radar-screen { position: relative; width: 180px; height: 180px; border-radius: 50%; border: 1px solid rgba(0,255,136,0.3); background: radial-gradient(circle, rgba(0,255,136,0.05) 0%, rgba(0,0,0,0.8) 100%); overflow: hidden; box-shadow: inset 0 0 30px rgba(0,0,0,0.9), 0 0 20px rgba(0,255,136,0.1); margin-bottom: 15px; }
+        .radar-screen::after { content: ''; position: absolute; top: 50%; left: 50%; width: 50%; height: 50%; background: linear-gradient(45deg, rgba(0,255,136,0) 0%, rgba(0,255,136,0.4) 100%); transform-origin: 0 0; animation: radarSweep 2s linear infinite; }
+        @keyframes radarSweep { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .radar-screen::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 4px; height: 4px; background: #00ff88; border-radius: 50%; box-shadow: 0 0 8px #00ff88; z-index: 2; }
+        .radar-target { position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; background: #ffaa00; border-radius: 50%; box-shadow: 0 0 15px #ffaa00, 0 0 5px #fff; transform: translate(-50%, -50%); transition: all 0.8s ease-out; opacity: 0; z-index: 3; }
+        .radar-target.active { opacity: 1; }
+
+        .radar-zoom-controls { display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 15px; width: 100%; }
+        .zoom-btn { background: rgba(0, 255, 136, 0.05); border: 1px solid rgba(0, 255, 136, 0.3); color: #00ff88; width: 32px; height: 32px; border-radius: 50%; font-weight: bold; font-size: 18px; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: all 0.3s; user-select: none; }
+        .zoom-btn:hover { background: rgba(0, 255, 136, 0.2); box-shadow: 0 0 10px rgba(0, 255, 136, 0.3); }
+        .zoom-display { font-size: 13px; color: #aaa; font-family: monospace; letter-spacing: 1px; width: 85px; text-align: center; }
+
+        .radar-distance { font-size: 32px; color: #00ff88; font-family: monospace; letter-spacing: 1px; text-shadow: 0 0 10px rgba(0,255,136,0.3); font-weight: bold; }
+        .radar-status { font-size: 13px; color: #777; margin-top: 5px; }
+
+        .radar-controls { display: none; width: 100%; gap: 10px; margin-top: 20px; flex-direction: column; }
+        .btn-refresh { background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.3); color: #ffaa00; padding: 12px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold;}
+        .btn-refresh:hover { background: rgba(255, 170, 0, 0.2); box-shadow: 0 0 15px rgba(255, 170, 0, 0.3); }
+        .btn-refresh:active { transform: scale(0.98); }
+        .btn-exit { background: rgba(255, 68, 68, 0.1); border: 1px solid rgba(255, 68, 68, 0.3); color: #ff4444; padding: 12px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold;}
+        .btn-exit:hover { background: rgba(255, 68, 68, 0.2); box-shadow: 0 0 15px rgba(255, 68, 68, 0.3); }
+        
+        .override-group { background: rgba(255, 170, 0, 0.05); border: 1px dashed rgba(255, 170, 0, 0.3); padding: 15px; border-radius: 8px; margin-bottom: 18px; }
+        .override-group label { color: #ffaa00; }
+        .override-group input:focus { border-color: rgba(255, 170, 0, 0.4); box-shadow: 0 0 10px rgba(255, 170, 0, 0.1); }
+        
+        /* v5.0 LINE 防護牆專用 UI */
+        #line-escape-wall {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #0f0f0f; z-index: 9999; flex-direction: column; align-items: center; justify-content: center; padding: 30px; box-sizing: border-box; text-align: center;
+        }
+        #line-escape-wall h2 { color: #ffaa00; margin-bottom: 10px; font-size: 24px; }
+        #line-escape-wall p { color: #ccc; line-height: 1.6; margin-bottom: 30px; }
+        .btn-escape {
+            background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%); color: #000; 
+            padding: 16px 30px; border-radius: 30px; font-size: 18px; font-weight: bold; 
+            text-decoration: none; box-shadow: 0 10px 20px rgba(0,255,136,0.3);
+            transition: transform 0.2s;
+        }
+        .btn-escape:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+
+<div id="line-escape-wall">
+    <h2>⚠️ 系統偵測到 LINE 瀏覽器</h2>
+    <p>LINE 內部環境嚴格封鎖定位功能，雷達系統將無法正常運作。<br><br>請點擊下方按鈕，系統將安全地為您跳轉至 Safari 或系統預設瀏覽器。</p>
+    <a href="#" id="escape-link" class="btn-escape">🚀 點此以 Safari 安全開啟</a>
+</div>
+
+<div id="glass-window">
+    <div id="window-header">
+        <span id="window-title">Node Client v5.0 (Safe Escape)</span>
+        <span id="settings-btn" title="系統配置">⚙</span>
+    </div>
+    
+    <div class="mode-switch">
+        <button id="mode-buyer" class="mode-btn active">發起端 (買方)</button>
+        <button id="mode-seller" class="mode-btn">接收端 (賣方)</button>
+    </div>
+
+    <div id="loading-overlay">
+        <div id="status-board">
+            <div class="spinner" id="overlay-spinner"></div>
+            <div class="success-checkmark" id="overlay-checkmark"></div>
+            <div id="overlay-text">建立加密傳輸...</div>
+        </div>
+        
+        <div class="radar-box" id="radar-box">
+            <div class="radar-screen">
+                <div class="radar-target" id="radar-target"></div>
+            </div>
+            
+            <div class="radar-zoom-controls">
+                <div class="zoom-btn" id="btn-zoom-out" title="擴大範圍">-</div>
+                <div class="zoom-display" id="zoom-display">半徑: 500m</div>
+                <div class="zoom-btn" id="btn-zoom-in" title="微距解析">+</div>
+            </div>
+
+            <div class="radar-distance" id="radar-distance">-- m</div>
+            <div class="radar-status" id="radar-status">等待目標座標同步...</div>
+        </div>
+
+        <div class="radar-controls" id="radar-controls">
+            <button class="btn-refresh" id="btn-force-refresh">⚡ 強制更新目標座標</button>
+            <button class="btn-exit" id="btn-exit-radar">離線並註銷</button>
+        </div>
+    </div>
+
+    <div class="content">
+        <div id="env-check-board"></div>
+
+        <div id="gas-config-container">
+            <label>API [POST] Route</label>
+            <input type="text" id="config_gas_post_url" value="https://script.google.com/macros/s/AKfycbz1AcLFqPjkLTQh_-lRJVsrSEEyaNsrTS2bGA3PiKNfBKLs7xfEpYjJRFSeu7nAxf134g/exec">
+            <label>API [GET] Route</label>
+            <input type="text" id="config_gas_get_url" value="https://script.google.com/macros/s/AKfycbz1AcLFqPjkLTQh_-lRJVsrSEEyaNsrTS2bGA3PiKNfBKLs7xfEpYjJRFSeu7nAxf134g/exec">
+        </div>
+
+        <div id="view-buyer">
+            <div class="form-group">
+                <label class="required">代號 / 名稱</label>
+                <input type="text" id="order-name" autocomplete="off" placeholder="Input Identity">
+            </div>
+            <div class="form-group">
+                <label class="required">通訊金鑰 (聯繫方式)</label>
+                <input type="text" id="order-contact" autocomplete="off" placeholder="Phone / Line ID">
+            </div>
+            
+            <div class="override-group">
+                <label>🛠️ 手動座標覆寫 (Google Map)</label>
+                <input type="text" id="override-gps-buyer" autocomplete="off" placeholder="貼上 緯度,經度 或 Google Map 網址 (非必填)">
+                <div style="font-size:11px; color:#ffaa00; margin-top:6px;">※ 填寫此欄將強制關閉手機硬體定位，直接使用此座標繞過所有系統限制。</div>
+            </div>
+
+            <div class="flex-row">
+                <div class="form-group"><label>節點 A</label><select id="item-a"><option value="無" selected>無</option><option value="半">半</option><option value="1">1</option></select></div>
+                <div class="form-group"><label>節點 B</label><input type="text" id="item-b" autocomplete="off"></div>
+            </div>
+            <div class="form-group"><label class="required">同步時間</label><input type="text" id="order-meetuptime" autocomplete="off"></div>
+            <div class="form-group"><label class="required">物理座標 (位置)</label><input type="text" id="order-location" autocomplete="off"></div>
+            
+            <div class="form-group">
+                <label>附加標記 (備註)</label>
+                <textarea id="order-memo" autocomplete="off" placeholder="Logs..."></textarea>
+            </div>
+
+            <button class="btn-action" id="submit-btn">執行封裝與廣播</button>
+        </div>
+
+        <div id="view-seller" style="display: none;">
+            <div style="background: rgba(0,255,136,0.05); padding: 15px; border-radius: 8px; border: 1px dashed rgba(0,255,136,0.3); margin-bottom: 20px; font-size: 13px; color: #888;">
+                切換至賣方模式。請輸入試算表中對應的行號(Order ID)，系統將自動綁定並持續推送您的當前座標給買方。
+            </div>
+            <div class="form-group">
+                <label class="required">綁定連線 ID (試算表行號)</label>
+                <input type="number" id="seller-order-id" placeholder="例如: 3">
+            </div>
+            
+            <div class="override-group">
+                <label>🛠️ 手動座標覆寫 (Google Map)</label>
+                <input type="text" id="override-gps-seller" autocomplete="off" placeholder="貼上 緯度,經度 或 Google Map 網址 (非必填)">
+                <div style="font-size:11px; color:#ffaa00; margin-top:6px;">※ 填寫此欄將強制關閉手機硬體定位，直接使用此座標繞過所有系統限制。</div>
+            </div>
+
+            <button class="btn-action" id="bind-seller-btn">綁定節點並啟動雷達</button>
+        </div>
+
+        <div id="sys-log-container"></div>
+    </div>
+</div>
+
+<script>
+    // [v5.0 核心] LINE 環境安全攔截牆 (取代自動跳轉避免白屏)
+    const ua = navigator.userAgent || navigator.vendor || window.opera;
+    const isLine = (ua.indexOf("Line") > -1);
+    const isFB = (ua.indexOf("FBAN") > -1) || (ua.indexOf("FBAV") > -1);
+    const isIG = (ua.indexOf("Instagram") > -1);
+    
+    if ((isLine || isFB || isIG) && location.search.indexOf("openExternalBrowser=1") === -1) {
+        document.getElementById('line-escape-wall').style.display = 'flex';
+        document.getElementById('escape-link').href = location.href + (location.href.indexOf('?') > -1 ? '&' : '?') + "openExternalBrowser=1";
+    }
+
+    const sysLogContainer = document.getElementById('sys-log-container');
+    function sysLog(msg, type = 'info') {
+        const d = new Date();
+        const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+        const div = document.createElement('div'); div.className = `log-entry log-${type}`; div.innerHTML = `<span class="log-time">[${timeStr}]</span>${msg}`;
+        sysLogContainer.prepend(div); console.log(`[${type.toUpperCase()}] ${msg}`);
+    }
+    sysLog("System v5.0 Ready. Safe Escape Engine Active.", "success");
+
+    let preCachedLat = null, preCachedLng = null, preCachedAcc = null;
+    if (navigator.geolocation && window.location.protocol === 'https:') {
+        sysLog("Initiating Background Silent GPS Request...", "info");
+        navigator.geolocation.getCurrentPosition(
+            (pos) => { 
+                preCachedLat = pos.coords.latitude; preCachedLng = pos.coords.longitude; preCachedAcc = pos.coords.accuracy;
+                sysLog(`Silent GPS Lock Acquired: [${preCachedLat.toFixed(4)}, ${preCachedLng.toFixed(4)}]`, "success"); 
+            },
+            (err) => { sysLog(`Silent GPS Init Blocked/Failed: Code ${err.code}`, "warn"); },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+        );
+    }
+
+    const envBoard = document.getElementById('env-check-board');
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.protocol !== 'file:') {
+        envBoard.style.display = 'block';
+        envBoard.innerHTML += `⚠️ <b>環境缺失</b>: 非 HTTPS 安全網域 (iOS 系統將強制封殺硬體 GPS)。請務必使用手動座標覆寫功能。`;
+        sysLog("HTTP detected. Hardware GPS locked. Override required.", "error");
+    }
+    
+    window.onerror = function(msg, url, line) { sysLog(`Crash: ${msg} (L${line})`, "error"); return true; };
+    window.addEventListener('unhandledrejection', function(e) { sysLog(`Async Fail: ${e.reason}`, "error"); });
+
+    const glassWindow = document.getElementById('glass-window');
+    let isDragging = false, startX, startY, initialX, initialY;
+    document.getElementById('window-header').addEventListener('mousedown', (e) => {
+        if(e.target.id === 'settings-btn') return; 
+        isDragging = true; startX = e.clientX; startY = e.clientY;
+        const m = new DOMMatrixReadOnly(window.getComputedStyle(glassWindow).transform);
+        initialX = m.m41; initialY = m.m42;
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        glassWindow.style.transform = `translate(${initialX + (e.clientX - startX)}px, ${initialY + (e.clientY - startY)}px)`;
+    });
+    document.addEventListener('mouseup', () => { isDragging = false; });
+
+    document.getElementById('settings-btn').addEventListener('click', () => {
+        const c = document.getElementById('gas-config-container');
+        if (c.style.display === 'none' || c.style.display === '') {
+            if(prompt("AUTH:") === "5555") c.style.display = 'block';
+        } else { c.style.display = 'none'; }
+    });
+
+    let currentMode = 'buyer';
+    document.getElementById('mode-buyer').onclick = (e) => {
+        currentMode = 'buyer'; e.target.classList.add('active'); document.getElementById('mode-seller').classList.remove('active');
+        document.getElementById('view-buyer').style.display = 'block'; document.getElementById('view-seller').style.display = 'none';
+    };
+    document.getElementById('mode-seller').onclick = (e) => {
+        currentMode = 'seller'; e.target.classList.add('active'); document.getElementById('mode-buyer').classList.remove('active');
+        document.getElementById('view-seller').style.display = 'block'; document.getElementById('view-buyer').style.display = 'none';
+    };
+
+    function getCanvasFingerprint() {
+        try {
+            const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+            ctx.textBaseline = 'top'; ctx.font = '14px Arial'; ctx.fillStyle = '#f60'; ctx.fillRect(125, 1, 62, 20);
+            ctx.fillStyle = '#069'; ctx.fillText('Node v5.0', 2, 15);
+            const dataURL = canvas.toDataURL(); let hash = 0;
+            for (let i = 0; i < dataURL.length; i++) { hash = ((hash << 5) - hash) + dataURL.charCodeAt(i); hash = hash & hash; }
+            return 'CFP-' + Math.abs(hash).toString(16).toUpperCase();
+        } catch (e) { return 'CFP-BLOCKED'; }
+    }
+    function getVID() {
+        try {
+            let vid = localStorage.getItem('__sys_vid');
+            if (!vid) { vid = 'VID-' + Math.random().toString(36).substr(2, 9).toUpperCase(); localStorage.setItem('__sys_vid', vid); }
+            return vid;
+        } catch(e) { return 'VID-BLOCKED'; }
+    }
+    async function getDevInfo() {
+        let ip = 'IP-BLOCKED'; try { const r = await fetch('https://api.ipify.org?format=json'); const d = await r.json(); ip = d.ip; } catch(e){}
+        const ua = navigator.userAgent || 'UA-UNKNOWN'; const isMob = /Mobi|Android|iPhone/i.test(ua);
+        const res = window.screen ? `${window.screen.width}x${window.screen.height}` : 'RES-UNKNOWN';
+        return { ip, vid: getVID(), type: isMob ? '📱 Mobile' : '💻 PC', os: navigator.platform || 'OS-UNKNOWN', ua, res, cfp: getCanvasFingerprint() };
+    }
+
+    function calcDist(lat1, lon1, lat2, lon2) {
+        const R = 6371e3; const φ1 = lat1 * Math.PI/180; const φ2 = lat2 * Math.PI/180;
+        const Δφ = (lat2-lat1) * Math.PI/180; const Δλ = (lon2-lon1) * Math.PI/180;
+        const a = Math.sin(Δφ/2)*Math.sin(Δφ/2) + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)*Math.sin(Δλ/2);
+        return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))); 
+    }
+    function calcBear(lat1, lon1, lat2, lon2) {
+        const φ1 = lat1 * Math.PI/180, φ2 = lat2 * Math.PI/180, λ1 = lon1 * Math.PI/180, λ2 = lon2 * Math.PI/180;
+        const y = Math.sin(λ2-λ1) * Math.cos(φ2), x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);
+        return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    }
+
+    function parseManualGPS(input) {
+        if (!input) return null; let str = input.trim();
+        let matchRaw = str.match(/(-?\d+(\.\d+)?)\s*,\s*(-?\d+(\.\d+)?)/);
+        if (matchRaw) return { lat: parseFloat(matchRaw[1]), lng: parseFloat(matchRaw[3]) };
+        let matchUrl = str.match(/@(-?\d+(\.\d+)?),(-?\d+(\.\d+)?)/);
+        if (matchUrl) return { lat: parseFloat(matchUrl[1]), lng: parseFloat(matchUrl[3]) };
+        return null;
+    }
+
+    const overlay = document.getElementById('loading-overlay'), overlayText = document.getElementById('overlay-text');
+    const spinner = document.getElementById('overlay-spinner'), checkmark = document.getElementById('overlay-checkmark');
+    const radarBox = document.getElementById('radar-box'), radarDist = document.getElementById('radar-distance');
+    const radarStatus = document.getElementById('radar-status'), targetDot = document.getElementById('radar-target');
+    const radarControls = document.getElementById('radar-controls');
+    
+    let pollTimer = null, waitTimer = null, radarTimer = null, arrivalTimer = null, gpsWatchId = null, currentOrderId = null;
+    let lastDist = null, lastBear = null, sysOverrideLat = null, sysOverrideLng = null;
+
+    const zoomLevels = [10, 50, 100, 500, 1000, 5000];
+    let currentZoomIndex = 3; 
+
+    function updateZoomDisplay() { document.getElementById('zoom-display').innerText = `半徑: ${zoomLevels[currentZoomIndex]}m`; renderTargetDot(); }
+    document.getElementById('btn-zoom-in').onclick = () => { if (currentZoomIndex > 0) { currentZoomIndex--; updateZoomDisplay(); } };
+    document.getElementById('btn-zoom-out').onclick = () => { if (currentZoomIndex < zoomLevels.length - 1) { currentZoomIndex++; updateZoomDisplay(); } };
+
+    function resetUI() {
+        if(pollTimer) clearInterval(pollTimer); if(waitTimer) clearInterval(waitTimer); 
+        if(radarTimer) clearInterval(radarTimer); if(arrivalTimer) clearInterval(arrivalTimer);
+        if(gpsWatchId && navigator.geolocation) navigator.geolocation.clearWatch(gpsWatchId);
+        
+        overlay.style.display = 'none'; spinner.style.display = 'block'; checkmark.style.display = 'none';
+        radarBox.style.display = 'none'; radarControls.style.display = 'none'; targetDot.classList.remove('active');
+        lastDist = null; lastBear = null; currentZoomIndex = 3; updateZoomDisplay();
+        sysOverrideLat = null; sysOverrideLng = null; sysLog("UI Reset Completed.", "info");
+    }
+    document.getElementById('btn-exit-radar').onclick = resetUI;
+
+    function formatTime(sec) { let m = Math.floor(sec/60); let s = sec%60; return m + ':' + (s<10?'0':'') + s; }
+
+    function renderTargetDot() {
+        if (lastDist === null || lastBear === null) return;
+        const maxDist = zoomLevels[currentZoomIndex]; const radiusPx = 90; let dotDist = (lastDist / maxDist) * radiusPx;
+        if (dotDist > radiusPx) { dotDist = radiusPx - 4; targetDot.style.background = "#ff4444"; targetDot.style.boxShadow = "0 0 10px #ff4444"; } 
+        else { targetDot.style.background = "#ffaa00"; targetDot.style.boxShadow = "0 0 15px #ffaa00, 0 0 5px #fff"; }
+        const angleRad = (lastBear - 90) * (Math.PI / 180);
+        targetDot.style.left = `${radiusPx + dotDist * Math.cos(angleRad)}px`;
+        targetDot.style.top = `${radiusPx + dotDist * Math.sin(angleRad)}px`;
+        targetDot.classList.add('active');
+    }
+
+    async function safeFetch(url, payload) {
+        try {
+            sysLog(`Fetching: ${payload.action || 'GET'}...`, "info");
+            const response = await fetch(url, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json(); return data;
+        } catch (error) { sysLog(`Fetch Failed: ${error.message}`, "error"); throw error; }
+    }
+
+    function startRadarEngine(role, orderId) {
+        const postUrl = document.getElementById('config_gas_post_url').value.trim();
+        const getUrl = document.getElementById('config_gas_get_url').value.trim();
+        
+        radarBox.style.display = 'flex'; radarControls.style.display = 'flex';
+        sysLog(`Starting Radar Engine. Override Status: ${sysOverrideLat !== null}`, "info");
+
+        let gpsUpdateCount = 0;
+        const sendGPS = async (lat, lng, acc) => {
+            let accMsg = acc === 0 ? "手動絕對精準" : `±${Math.round(acc)}m`;
+            radarStatus.innerText = `座標同步中 (${accMsg})...`;
+            if (gpsUpdateCount % 5 === 0) sysLog(`GPS Lock: [${lat.toFixed(4)}, ${lng.toFixed(4)}]`, "success");
+            gpsUpdateCount++;
+            try { await safeFetch(postUrl, { action: "update_gps", role: role, orderId: orderId, lat: lat, lng: lng }); } catch(e) {}
+        };
+
+        if (sysOverrideLat !== null && sysOverrideLng !== null) {
+            radarStatus.innerText = "已啟用手動座標覆寫模式，無視硬體限制"; radarStatus.style.color = "#ffaa00";
+            sysLog(`Manual GPS Override Active: ${sysOverrideLat}, ${sysOverrideLng}`, "warn");
+            sendGPS(sysOverrideLat, sysOverrideLng, 0);
+        } else {
+            if (!navigator.geolocation) { radarStatus.innerText = "瀏覽器不支援定位功能，請使用手動覆寫！"; radarStatus.style.color = "#ff4444"; return; }
+            radarStatus.innerText = "向系統請求即時定位中...";
+            
+            if (preCachedLat && preCachedLng) {
+                sysLog("Injecting Silent Pre-Cached GPS Data immediately.", "success");
+                sendGPS(preCachedLat, preCachedLng, preCachedAcc);
+            }
+
+            const startWatch = (highAcc) => {
+                return navigator.geolocation.watchPosition(
+                    (pos) => sendGPS(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+                    (err) => {
+                        if (highAcc && (err.code === 3 || err.code === 2)) {
+                            sysLog(`GPS Error. Downgrading.`, "warn");
+                            if(gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId);
+                            gpsWatchId = startWatch(false); return;
+                        }
+                        radarStatus.innerText = `GPS 阻擋，請填寫上方的「手動座標覆寫」`; radarStatus.style.color = "#ff4444"; 
+                    },
+                    { enableHighAccuracy: highAcc, timeout: highAcc ? 8000 : 15000, maximumAge: highAcc ? 0 : 5000 }
+                );
+            };
+            
+            if (!preCachedLat) {
+                navigator.geolocation.getCurrentPosition(
+                    () => { gpsWatchId = startWatch(true); },
+                    () => { gpsWatchId = startWatch(false); }, { enableHighAccuracy: false, timeout: 5000 }
+                );
+            } else {
+                gpsWatchId = startWatch(true);
+            }
+        }
+
+        let pollCount = 0;
+        const fetchTargetGPS = async () => {
+            try {
+                pollCount++;
+                const r = await fetch(`${getUrl}?orderId=${orderId}&t=${Date.now()}`, { cache: 'no-store' });
+                const res = await r.json();
+                const targetLat = role === 'buyer' ? res.sellerLat : res.buyerLat;
+                const targetLng = role === 'buyer' ? res.sellerLng : res.buyerLng;
+
+                if (targetLat && targetLng) {
+                    if (sysOverrideLat !== null && sysOverrideLng !== null) {
+                        lastDist = calcDist(sysOverrideLat, sysOverrideLng, parseFloat(targetLat), parseFloat(targetLng));
+                        lastBear = calcBear(sysOverrideLat, sysOverrideLng, parseFloat(targetLat), parseFloat(targetLng));
+                        updateRadarVisuals(lastDist);
+                    } else {
+                        navigator.geolocation.getCurrentPosition((pos) => {
+                            lastDist = calcDist(pos.coords.latitude, pos.coords.longitude, parseFloat(targetLat), parseFloat(targetLng));
+                            lastBear = calcBear(pos.coords.latitude, pos.coords.longitude, parseFloat(targetLat), parseFloat(targetLng));
+                            updateRadarVisuals(lastDist);
+                        });
+                    }
+                } else { radarStatus.innerText = "等待目標設備回應座標..."; targetDot.classList.remove('active'); radarDist.innerText = "-- m"; }
+            } catch(e) { sysLog(`Target Poll Fail: ${e.message}`, "error"); }
+        };
+        
+        function updateRadarVisuals(dist) {
+            radarDist.innerText = `${dist} m`;
+            if (dist < 10) { radarStatus.innerText = "目標進入微距解析範圍！"; radarStatus.style.color = "#ff4444"; }
+            else if (dist < 50) { radarStatus.innerText = "目標極近目視範圍！"; radarStatus.style.color = "#ff4444"; }
+            else if (dist < 500) { radarStatus.innerText = "目標接近中..."; radarStatus.style.color = "#ffaa00"; }
+            else { radarStatus.innerText = "目標座標已鎖定"; radarStatus.style.color = "#00ff88"; }
+            renderTargetDot();
+        }
+
+        fetchTargetGPS(); radarTimer = setInterval(fetchTargetGPS, 3500);
+
+        document.getElementById('btn-force-refresh').onclick = async () => {
+            const btn = document.getElementById('btn-force-refresh'); btn.disabled = true; btn.innerText = "📡 刷新請求發送中...";
+            try { await safeFetch(postUrl, { action: "refresh_ping", orderId: orderId }); await fetchTargetGPS(); } catch(e){}
+            setTimeout(() => { btn.disabled = false; btn.innerText = "⚡ 強制更新目標座標"; }, 2000);
+        };
+    }
+
+    document.getElementById('submit-btn').onclick = async () => {
+        const postUrl = document.getElementById('config_gas_post_url').value.trim();
+        const getUrl = document.getElementById('config_gas_get_url').value.trim();
+        if (!document.getElementById('order-name').value) return alert("必填缺失");
+        
+        const manualInput = document.getElementById('override-gps-buyer').value;
+        const parsedGps = parseManualGPS(manualInput);
+        if (manualInput && !parsedGps) { alert("Google Map 座標格式錯誤！請貼上正確的網址或 緯度,經度"); return; }
+        if (parsedGps) { sysOverrideLat = parsedGps.lat; sysOverrideLng = parsedGps.lng; }
+
+        resetUI(); overlay.style.display = 'flex';
+        
+        try {
+            const dev = await getDevInfo();
+            const payload = { 
+                action: "submit_order", name: document.getElementById('order-name').value, contact: document.getElementById('order-contact').value, 
+                time: document.getElementById('order-meetuptime').value, loc: document.getElementById('order-location').value, 
+                itemA: document.getElementById('item-a').value, itemB: document.getElementById('item-b').value, 
+                memo: document.getElementById('order-memo').value.trim(), ip: dev.ip, vid: dev.vid, type: dev.type, os: dev.os, res: dev.res, ua: dev.ua, cfp: dev.cfp 
+            };
+            
+            const res = await safeFetch(postUrl, payload);
+
+            if (res.status === 'success') {
+                currentOrderId = res.row;
+                overlayText.innerHTML = `<div style="color: #aaa;">等待節點接收連線...</div><div class="highlight-time" id="wait-span">3600</div>`;
+                
+                let w = 3600; waitTimer = setInterval(() => { w--; if(w>0 && document.getElementById('wait-span')) document.getElementById('wait-span').innerText = w; }, 1000);
+                
+                pollTimer = setInterval(async () => {
+                    try {
+                        const rr = await fetch(`${getUrl}?orderId=${res.row}&t=${Date.now()}`, { cache: 'no-store' });
+                        const rres = await rr.json();
+                        if (rres.status === 'accepted') {
+                            clearInterval(pollTimer); clearInterval(waitTimer);
+                            spinner.style.display = 'none'; checkmark.style.display = 'block';
+                            checkmark.style.animation = 'checkPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
+                            
+                            let msgStr = String(rres.replyMsg || '盡快').trim(); let timeMatch = msgStr.match(/(\d+)/); let timeDisplayHtml = `<div class="highlight-time">${msgStr}</div>`;
+                            
+                            if (timeMatch && parseInt(timeMatch[1]) > 0) {
+                                let totalSeconds = parseInt(timeMatch[1]) * 60;
+                                timeDisplayHtml = `<div class="highlight-time" id="arrival-countdown">${formatTime(totalSeconds)}</div>`;
+                                arrivalTimer = setInterval(() => {
+                                    totalSeconds--; if (totalSeconds < 0) totalSeconds = 0;
+                                    const cdEl = document.getElementById('arrival-countdown'); if (cdEl) cdEl.innerText = formatTime(totalSeconds);
+                                    if (totalSeconds <= 0) clearInterval(arrivalTimer);
+                                }, 1000);
+                            }
+
+                            overlayText.innerHTML = `
+                                <div style="color: #00ff88; margin-bottom: 5px; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,136,0.3);">🎉 節點已接受連線</div>
+                                <div style="font-size: 13px; color: #aaa; margin-top: 10px;">預估 T-Minus 抵達</div>
+                                ${timeDisplayHtml}
+                                <div style="font-size: 12px; color: #777; margin-top: 5px;">(如有開車會敲後右車門)</div>
+                            `;
+                            setTimeout(() => { startRadarEngine('buyer', res.row); }, 1500);
+                        }
+                    } catch(e){}
+                }, 3000);
+            }
+        } catch (e) { sysLog("Critical Transmit Error.", "error"); resetUI(); }
+    };
+
+    document.getElementById('bind-seller-btn').onclick = () => {
+        const id = document.getElementById('seller-order-id').value.trim();
+        if(!id || isNaN(id)) return alert("請輸入有效的訂單行號");
+        
+        const manualInput = document.getElementById('override-gps-seller').value;
+        const parsedGps = parseManualGPS(manualInput);
+        if (manualInput && !parsedGps) { alert("Google Map 座標格式錯誤！請貼上正確的網址或 緯度,經度"); return; }
+        if (parsedGps) { sysOverrideLat = parsedGps.lat; sysOverrideLng = parsedGps.lng; }
+
+        currentOrderId = parseInt(id); resetUI(); overlay.style.display = 'flex';
+        
+        spinner.style.display = 'none'; checkmark.style.display = 'block';
+        checkmark.style.animation = 'checkPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
+        overlayText.innerHTML = `<div style="color: #00ff88; font-size: 20px;">賣方節點綁定成功</div><div style="color: #777; font-size: 14px; margin-top:10px;">訂單 ID: ${currentOrderId}</div>`;
+        
+        setTimeout(() => { startRadarEngine('seller', currentOrderId); }, 1000);
+    };
+</script>
+</body>
+</html>
